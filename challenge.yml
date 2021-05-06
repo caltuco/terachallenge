@@ -1,0 +1,235 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value:  !Join ['', [!Ref "AWS::StackName", "-VPC" ]]
+  # # NAT Gateway:
+  # NATGateway:
+  #   Type: AWS::EC2::NatGateway
+  #   Properties:
+  #     AllocationId: !GetAtt ElasticIPAddress.AllocationId
+  #     SubnetId: !Ref PublicSubnetA
+  #     Tags:
+  #     - Key: Name
+  #       Value: !Sub NAT-${AWS::StackName}
+  ElasticIPAddress:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: VPC
+
+  # IGW:
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+ ## Attach
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn: 
+    - VPC
+    - InternetGateway
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+ #SubnetPublic
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 192.1.10.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]    # Get the first AZ in the list
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-Public-A
+  #SubnetPublic
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 192.1.20.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]    # Get the second AZ in the list 
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-Public-B
+  #RT SubnetPublic
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: 
+    - VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: Public
+  #Route 1 to IGW
+  PublicRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: 
+    - PublicRouteTable
+    - InternetGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+ 
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+
+  # InstanceSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   DependsOn:
+  #   - VPC
+  #   Properties:
+  #     GroupDescription: Allow access to application
+  #     VpcId: !Ref VPC
+  #     SecurityGroupIngress:
+  #      - IpProtocol: tcp
+  #        FromPort: '1'
+  #        ToPort: '65535'
+  #        CidrIp: 0.0.0.0/0
+       # - IpProtocol: tcp
+       #   FromPort: '443'
+       #   ToPort: '443'
+      # SecurityGroupEgress:
+      #  - IpProtocol: tcp
+      #    FromPort: '1'
+      #    ToPort: '65535'
+      #    CidrIp: 0.0.0.0/0
+       # - IpProtocol: tcp
+       #   FromPort: '443'
+       #   ToPort: '443'
+       #   CidrIp: 0.0.0.0/0
+
+ # Application
+  sampleApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      Description: Deploying Grafana
+  sampleApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      Description: To deploy grafana
+      ApplicationName:
+        Ref: sampleApplication
+      SourceBundle:
+        S3Bucket: "caltuco-test"
+        S3Key: "grafana3.zip"
+  sampleConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName:
+        Ref: sampleApplication
+      Description: AWS ElasticBeanstalk Sample Configuration Template
+      OptionSettings:
+      # - Namespace: aws:autoscaling:asg
+      #   OptionName: MinSize
+      #   Value: '1'
+      # - Namespace: aws:autoscaling:asg
+      #   OptionName: MaxSize
+      #   Value: '2'
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: EnvironmentType
+        Value: LoadBalanced
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: EC2KeyName
+        Value:
+          Ref: KeyName
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: IamInstanceProfile
+        Value: !Ref MyInstanceProfile
+      # - Namespace: aws:autoscaling:launchconfiguration
+      #   OptionName: SecurityGroups
+      #   Value:
+      #     Ref: InstanceSecurityGroup
+      - Namespace: aws:elasticbeanstalk:environment:process:default
+        OptionName: Port
+        Value: '3000'
+      - Namespace: aws:elasticbeanstalk:environment:process:default
+        OptionName: Protocol
+        Value: 'http'
+      - Namespace: aws:elb:listener:80
+        OptionName: InstancePort
+        Value: '3000'
+      - Namespace: aws:ec2:vpc
+        OptionName: VPCId
+        Value: !Ref VPC
+      - Namespace: aws:ec2:vpc
+        OptionName: Subnets
+        Value: !Join [',' ,[!Ref PublicSubnetA , !Ref PublicSubnetB]]
+      # - Namespace: aws:ec2:vpc
+      #   OptionName: Subnets
+      #   Value: !Ref PublicSubnetB
+      - Namespace: aws:ec2:vpc
+        OptionName: ELBSubnets
+        Value: !Join [',' , [!Ref PublicSubnetA, !Ref PublicSubnetB]]
+      # - Namespace: aws:ec2:vpc
+      #   OptionName: ELBSubnets
+      #   Value: !Ref PublicSubnetB
+      - Namespace: "aws:ec2:vpc" 
+        OptionName: AssociatePublicIpAddress
+        Value: true
+      SolutionStackName: 64bit Amazon Linux 2018.03 v2.16.7 running Docker 19.03.13-ce
+ #environment
+  sampleEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName:
+        Ref: sampleApplication
+      Description: AWS ElasticBeanstalk Sample Environment
+      TemplateName:
+        Ref: sampleConfigurationTemplate
+      VersionLabel:
+        Ref: sampleApplicationVersion
+  MyInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Beanstalk EC2 role
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier
+  MyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref MyInstanceRole
+
+  # Outputs:
+  #   URL:
+  #     Description: URL of application
+  #     Value: !Ref EndpointURL
+    # URL:
+    #   Description: URL of application
+    #   Value:
+    #     Fn::Join:
+    #     - ''
+    #     - http://
+    #     - Fn::GetAtt: ["SampleEnvironment" , "EndpointURL"]
