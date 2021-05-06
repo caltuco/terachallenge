@@ -14,15 +14,7 @@ Resources:
       Tags:
       - Key: Name
         Value:  !Join ['', [!Ref "AWS::StackName", "-VPC" ]]
-  # # NAT Gateway:
-  # NATGateway:
-  #   Type: AWS::EC2::NatGateway
-  #   Properties:
-  #     AllocationId: !GetAtt ElasticIPAddress.AllocationId
-  #     SubnetId: !Ref PublicSubnetA
-  #     Tags:
-  #     - Key: Name
-  #       Value: !Sub NAT-${AWS::StackName}
+  #EIP
   ElasticIPAddress:
     Type: AWS::EC2::EIP
     Properties:
@@ -94,30 +86,6 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
 
 
-  # InstanceSecurityGroup:
-  #   Type: AWS::EC2::SecurityGroup
-  #   DependsOn:
-  #   - VPC
-  #   Properties:
-  #     GroupDescription: Allow access to application
-  #     VpcId: !Ref VPC
-  #     SecurityGroupIngress:
-  #      - IpProtocol: tcp
-  #        FromPort: '1'
-  #        ToPort: '65535'
-  #        CidrIp: 0.0.0.0/0
-       # - IpProtocol: tcp
-       #   FromPort: '443'
-       #   ToPort: '443'
-      # SecurityGroupEgress:
-      #  - IpProtocol: tcp
-      #    FromPort: '1'
-      #    ToPort: '65535'
-      #    CidrIp: 0.0.0.0/0
-       # - IpProtocol: tcp
-       #   FromPort: '443'
-       #   ToPort: '443'
-       #   CidrIp: 0.0.0.0/0
 
  # Application
   sampleApplication:
@@ -140,12 +108,7 @@ Resources:
         Ref: sampleApplication
       Description: AWS ElasticBeanstalk Sample Configuration Template
       OptionSettings:
-      # - Namespace: aws:autoscaling:asg
-      #   OptionName: MinSize
-      #   Value: '1'
-      # - Namespace: aws:autoscaling:asg
-      #   OptionName: MaxSize
-      #   Value: '2'
+     
       - Namespace: aws:elasticbeanstalk:environment
         OptionName: EnvironmentType
         Value: LoadBalanced
@@ -156,34 +119,25 @@ Resources:
       - Namespace: aws:autoscaling:launchconfiguration
         OptionName: IamInstanceProfile
         Value: !Ref MyInstanceProfile
-      # - Namespace: aws:autoscaling:launchconfiguration
-      #   OptionName: SecurityGroups
-      #   Value:
-      #     Ref: InstanceSecurityGroup
+      
       - Namespace: aws:elasticbeanstalk:environment:process:default
         OptionName: Port
         Value: '3000'
       - Namespace: aws:elasticbeanstalk:environment:process:default
         OptionName: Protocol
         Value: 'http'
-      # - Namespace: aws:elb:listener:80
-      #   OptionName: InstancePort
-      #   Value: '3000'
+      
       - Namespace: aws:ec2:vpc
         OptionName: VPCId
         Value: !Ref VPC
       - Namespace: aws:ec2:vpc
         OptionName: Subnets
         Value: !Join [',' ,[!Ref PublicSubnetA , !Ref PublicSubnetB]]
-      # - Namespace: aws:ec2:vpc
-      #   OptionName: Subnets
-      #   Value: !Ref PublicSubnetB
+      
       - Namespace: aws:ec2:vpc
         OptionName: ELBSubnets
         Value: !Join [',' , [!Ref PublicSubnetA, !Ref PublicSubnetB]]
-      # - Namespace: aws:ec2:vpc
-      #   OptionName: ELBSubnets
-      #   Value: !Ref PublicSubnetB
+      
       - Namespace: "aws:ec2:vpc" 
         OptionName: AssociatePublicIpAddress
         Value: true
