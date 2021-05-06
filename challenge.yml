@@ -132,7 +132,7 @@ Resources:
         Ref: sampleApplication
       SourceBundle:
         S3Bucket: "caltuco-test"
-        S3Key: "grafana3.zip"
+        S3Key: "grafana2.zip"
   sampleConfigurationTemplate:
     Type: AWS::ElasticBeanstalk::ConfigurationTemplate
     Properties:
@@ -166,9 +166,9 @@ Resources:
       - Namespace: aws:elasticbeanstalk:environment:process:default
         OptionName: Protocol
         Value: 'http'
-      - Namespace: aws:elb:listener:80
-        OptionName: InstancePort
-        Value: '3000'
+      # - Namespace: aws:elb:listener:80
+      #   OptionName: InstancePort
+      #   Value: '3000'
       - Namespace: aws:ec2:vpc
         OptionName: VPCId
         Value: !Ref VPC
@@ -222,14 +222,11 @@ Resources:
       Roles:
         - !Ref MyInstanceRole
 
-  # Outputs:
-  #   URL:
-  #     Description: URL of application
-  #     Value: !Ref EndpointURL
-    # URL:
-    #   Description: URL of application
-    #   Value:
-    #     Fn::Join:
-    #     - ''
-    #     - http://
-    #     - Fn::GetAtt: ["SampleEnvironment" , "EndpointURL"]
+Outputs:
+  URL:
+    Description: URL of application
+    Value:
+      Fn::Join:
+      - ''
+      - - http://
+        - Fn::GetAtt: 'sampleEnvironment.EndpointURL'
